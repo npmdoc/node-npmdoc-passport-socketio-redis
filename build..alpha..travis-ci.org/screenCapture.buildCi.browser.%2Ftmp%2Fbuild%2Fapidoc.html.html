@@ -1,0 +1,229 @@
+<html><head></head><body><div class="apidocDiv">
+<style>
+/*csslint
+*/
+.apidocDiv {
+    background: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+}
+.apidocDiv a[href] {
+    color: #33f;
+    font-weight: bold;
+    text-decoration: none;
+}
+.apidocDiv a[href]:hover {
+    text-decoration: underline;
+}
+.apidocCodeCommentSpan {
+    background: #bbf;
+    color: #000;
+    display: block;
+}
+.apidocCodeKeywordSpan {
+    color: #d00;
+    font-weight: bold;
+}
+.apidocCodePre {
+    background: #eef;
+    border: 1px solid;
+    color: #777;
+    padding: 5px;
+    white-space: pre-wrap;
+}
+.apidocFooterDiv {
+    margin-top: 20px;
+    text-align: center;
+}
+.apidocModuleLi {
+    margin-top: 10px;
+}
+.apidocSectionDiv {
+    border-top: 1px solid;
+    margin-top: 20px;
+}
+.apidocSignatureSpan {
+    color: #777;
+    font-weight: bold;
+}
+</style>
+<h1>api documentation for
+    <a>passport-socketio-redis (v1.0.2)</a>
+</h1>
+<h4>passport.js authenticate socket.io with RedisStore using express.js</h4>
+<div class="apidocSectionDiv"><a href="#apidoc.tableOfContents" id="apidoc.tableOfContents"><h1>table of contents</h1></a><ol>
+
+    <li class="apidocModuleLi"><a href="#apidoc.module.passport-socketio-redis">module passport-socketio-redis</a><ol>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.passport-socketio-redis.authorize">
+            function <span class="apidocSignatureSpan">passport-socketio-redis.</span>authorize
+            <span class="apidocSignatureSpan">(options)</span>
+            </a>
+
+        </li>
+
+        <li>
+
+            <a class="apidocElementLiA" href="#apidoc.element.passport-socketio-redis.filterSocketsByUser">
+            function <span class="apidocSignatureSpan">passport-socketio-redis.</span>filterSocketsByUser
+            <span class="apidocSignatureSpan">(socketIo, filter)</span>
+            </a>
+
+        </li>
+
+    </ol></li>
+
+</ol></div>
+
+<div class="apidocSectionDiv">
+<h1><a href="#apidoc.module.passport-socketio-redis" id="apidoc.module.passport-socketio-redis">module passport-socketio-redis</a></h1>
+
+
+    <h2>
+        <a href="#apidoc.element.passport-socketio-redis.authorize" id="apidoc.element.passport-socketio-redis.authorize">
+        function <span class="apidocSignatureSpan">passport-socketio-redis.</span>authorize
+        <span class="apidocSignatureSpan">(options)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">function authorize(options) {
+    var defaults = {
+        passport:     require('passport'),
+        key:          'connect.sid',
+        secret:       null,
+        store:        null,
+        success: function (data, accept){
+            accept();
+        },
+        fail: function (data, message, critical, accept) {
+            accept(new Error(message));
+        }
+    };
+
+    var auth = xtend(defaults, options);
+    auth.userProperty = auth.passport._userProperty || 'user';
+
+    if (!auth.cookieParser) {
+        throw new Error('cookieParser is required use connect.cookieParser or express.cookieParser');
+    }
+
+    return function(data, accept){
+        // Check if session store is based on Redis
+        if (!data.request)
+            return auth.fail(data,"socket.io 1.x is required");
+
+
+        if (auth.store.constructor.name === 'RedisStore')
+        {
+            data = data.request;
+            data.cookie = parseCookie(auth, data.headers.cookie || '');
+
+            data.sessionID = data.cookie[auth.key] || '';
+            data[auth.userProperty] = {
+                logged_in: false
+            };
+
+            if(data.xdomain &amp;&amp; !data.sessionID)
+                return auth.fail(data, 'Can not read cookies from CORS-Requests. See CORS-Workaround in the readme.', false, accept
+);
+
+            auth.store.get(data.sessionID, function(err, session){
+                if(err)
+                    return auth.fail(data, 'Error in session store:\n' + err.message, true, accept);
+                if(!session)
+                    return auth.fail(data, 'No session found', false, accept);
+                if(!session[auth.passport._key])
+                    return auth.fail(data, 'Passport was not initialized', true, accept);
+
+                var userKey = session[auth.passport._key][auth.userProperty];
+
+                if(!userKey)
+                    return auth.fail(data, 'User not authorized through passport. (User Property not found)', false, accept);
+
+                auth.passport.deserializeUser(userKey, function(err, user) {
+                    if (err)
+                        return auth.fail(data, err, true, accept);
+                    if (!user)
+                        return auth.fail(data, "User not found", false, accept);
+                    data[auth.userProperty] = user;
+                    data[auth.userProperty].logged_in = true;
+                    auth.success(data, accept);
+                });
+
+            });
+        }
+        else
+        {
+            return auth.fail(data, "You have to use RedisStore as SessionStore",false,accept);
+        }
+    };
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+// Use passport
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Initialize socket.io
+var io = require("socket.io")(server);
+
+io.use(socketioRedis.<span class="apidocCodeKeywordSpan">authorize</span>({
+passport:passport,
+cookieParser: cookieParser,
+key:         'connect.sid',
+secret:      'secret key',
+store:       new RedisStore({ host: 'localhost', port: 6379, client: redis }),
+success:     authorizeSuccess,  // *optional* callback on success - read more below
+fail:        authorizeFail     // *optional* callback on fail/error - read more below
+...</pre></li>
+    </ul>
+
+
+
+    <h2>
+        <a href="#apidoc.element.passport-socketio-redis.filterSocketsByUser" id="apidoc.element.passport-socketio-redis.filterSocketsByUser">
+        function <span class="apidocSignatureSpan">passport-socketio-redis.</span>filterSocketsByUser
+        <span class="apidocSignatureSpan">(socketIo, filter)</span>
+        </a>
+    </h2>
+    <ul>
+    <li>description and source-code<pre class="apidocCodePre">function filterSocketsByUser(socketIo, filter){
+    var handshaken = socketIo.sockets.manager.handshaken;
+    return Object.keys(handshaken || {})
+        .filter(function(skey){
+            return filter(handshaken[skey].user);
+        })
+        .map(function(skey){
+            return socketIo.sockets.manager.sockets.sockets[skey];
+        });
+}</pre></li>
+    <li>example usage<pre class="apidocCodePre">...
+**Plus** you have the `socket.request.user.logged_in` property which tells you whether the user is currently authorized or not.
+
+## Additional methods
+
+### `passportSocketIo.filterSocketsByUser`
+This function gives you the ability to filter all connected sockets via a user property. Needs two parameters `function(io, function
+(user))`. Example:
+```javascript
+passportSocketIo.<span class="apidocCodeKeywordSpan">filterSocketsByUser</span>(io, function(user){
+  return user.gender === 'female';
+}).forEach(function(socket){
+  socket.emit('messsage', 'hello, woman!');
+});
+```
+
+### Clientside:
+...</pre></li>
+    </ul>
+
+
+</div>
+
+<div class="apidocFooterDiv">
+    [ this document was created with
+    <a href="https://github.com/kaizhu256/node-utility2" target="_blank">utility2</a>
+    ]
+</div>
+</div>
+</body></html>
